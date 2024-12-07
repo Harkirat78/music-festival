@@ -1,0 +1,131 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Music Festival Performance Tracking Infrastructure'
+
+Resources:
+  # S3 Bucket to store CSV files
+  MusicFestivalBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: music-festival-csv
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: s3:ObjectCreated:Put
+            Function: !GetAtt ProcessCSVLambda.Arn
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: suffix
+                    Value: .csv
+
+  # Lambda Function to Process CSV
+  ProcessCSVLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: ProcessCSV
+      Runtime: python3.10
+      Handler: index.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        ZipFile: |
+          import boto3
+          import csv
+          import os
+          import json
+          import logging
+
+          # AWS Clients setup and lambda_handler function here 
+          # (Use the Python code from the previous response)
+
+      Environment:
+        Variables:
+          DYNAMO_TABLE: !Ref PerformancesTable
+          SNS_TOPIC: !Ref CSVProcessingTopic
+
+  # DynamoDB Table for Performances
+  PerformancesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Performances
+      AttributeDefinitions:
+        - AttributeName: stage
+          AttributeType: S
+        - AttributeName: date#start
+          AttributeType: S
+      KeySchema:
+        - AttributeName: stage
+          KeyType: HASH
+        - AttributeName: date#start
+          KeyType: RANGE
+      BillingMode: PAY_PER_REQUEST
+
+  # SNS Topic for Notifications
+  CSVProcessingTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: CSVProcessingStatus
+
+  # SNS Topic Subscription 
+  CSVProcessingTopicSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: email
+      Endpoint: soomalh4@gmail.com
+      TopicArn: !Ref CSVProcessingTopic
+
+  # IAM Role for Lambda
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: LambdaExecutionPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: arn:aws:logs:*:*:*
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource: !Sub ${MusicFestivalBucket.Arn}/*
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                Resource: !GetAtt PerformancesTable.Arn
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource: !Ref CSVProcessingTopic
+
+  # Lambda Permission to be invoked by S3
+  LambdaS3InvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ProcessCSVLambda
+      Action: lambda:InvokeFunction
+      Principal: s3.amazonaws.com
+      #changed for security reasons
+      SourceArn: !Sub arn:aws:s3:::${MusicFestivalBucket}
+
+Outputs:
+  S3BucketName:
+    Description: S3 Bucket for CSV Uploads
+    Value: !Ref MusicFestivalBucket
+  
+  DynamoDBTableName:
+    Description: DynamoDB Table for Performances
+    Value: !Ref PerformancesTable
+  
+  SNSTopicArn:
+    Description: SNS Topic for Notifications
+    Value: !Ref CSVProcessingTopic

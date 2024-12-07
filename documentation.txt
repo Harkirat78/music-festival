@@ -1,0 +1,100 @@
+# Music Festival Performance Tracking System - Design Rationale
+
+## Architectural Design Choices
+
+### Why Serverless?
+1. **Cost Efficiency**: 
+   - Pay only for actual compute time
+   - No need to manage servers
+   - Automatic scaling eliminates over-provisioning
+   - Reduces operational overhead and infrastructure costs
+
+### Service Selection Rationale
+
+#### AWS S3
+- **Why S3?**
+  - Highly durable object storage
+  - Supports event-driven architectures
+  - Scalable and cost-effective for file storage
+  - Easy to trigger Lambda functions on file upload
+
+#### AWS Lambda
+- **Why Lambda?**
+  - Handles CSV processing without maintaining servers
+  - Automatically scales based on incoming file uploads
+  - Supports short-running, event-driven tasks
+  - Integrates seamlessly with other AWS services
+
+#### DynamoDB Design Choices
+- **Why DynamoDB?**
+  - NoSQL database optimized for performance
+  - Supports complex querying patterns
+  - Automatic scaling
+  - Low-latency read/write operations
+
+### Database Schema Justification
+
+#### Partition Key (stage) and Sort Key (date#start)
+- **Design Goal**: Optimize query performance
+- **Reasoning**:
+  1. `stage` as partition key allows fast retrieval of stage-specific performances
+  2. Composite `date#start` sort key enables:
+     - Time-based filtering
+     - Efficient range queries
+     - Unique identification of each performance
+
+### Query Pattern Support
+- **Supported Queries**:
+  1. Find all performances on a specific stage
+  2. Retrieve performances within a time range
+  3. Get specific performance details
+
+## Security Considerations
+
+### IAM Role Design
+- **Principle of Least Privilege**
+  - Minimal permissions for each service
+  - Separate roles for different functions
+- **Specific Permissions**:
+  - Limited S3 read access
+  - Constrained DynamoDB write permissions
+  - Restricted SNS notification capabilities
+
+## Scalability Analysis
+
+### Processing Capacity
+- **Lambda**: Automatic scaling
+- **DynamoDB**: 
+  - Pay-per-request model
+  - Handles sudden traffic spikes
+- **Estimated Capacity**:
+  - 1,000 records/day: Minimal resources
+  - 10,000 records/day: Moderate scaling
+  - 100,000 records/day: Full elastic scaling
+
+## Potential Limitations and Future Improvements
+1. No data validation currently implemented
+2. Limited error handling
+3. No advanced querying mechanisms
+4. Potential for more sophisticated front-end integration
+
+## Cost Optimization Strategies
+- Use pay-per-request DynamoDB
+- Leverage Lambda's cost-effective compute model
+- Implement proper resource tagging
+- Set up AWS Cost Explorer alerts
+
+## Deployment Considerations
+- Use CloudFormation for infrastructure as code
+- Implement comprehensive logging
+- Set up monitoring and alerting mechanisms
+
+## Performance Benchmarks
+- Typical CSV processing: <1 second
+- DynamoDB write latency: Milliseconds
+- Lambda cold start: Minimal impact
+
+## Trade-offs and Design Decisions
+- Chose simplicity over complex validation
+- Prioritized scalability and cost-efficiency
+- Selected event-driven architecture for real-time processing
